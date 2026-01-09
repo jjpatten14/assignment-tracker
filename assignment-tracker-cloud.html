@@ -256,14 +256,16 @@
         <h1>📋 Assignment Tracker - Spring 2026</h1>
         <p class="subtitle">Week 1 starts Monday, January 5, 2026 | 140 total assignments</p>
 
-        <div id="auth-status" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; border: 2px solid #dee2e6;">
+        <div id="auth-status" style="margin-bottom: 20px; padding: 20px; border-radius: 8px; border: 3px solid #ffc107; background: #fff3cd;">
             <div id="signin-button" style="text-align: center;">
-                <p style="margin-bottom: 10px; color: #666;">Sign in with Google to sync your progress across devices</p>
+                <p style="margin: 0 0 15px 0; color: #856404; font-size: 18px; font-weight: bold;">⚠️ NOT SYNCING - Changes only saved locally!</p>
+                <p style="margin-bottom: 15px; color: #856404; font-size: 14px;">Sign in with Google to sync across devices and prevent data loss</p>
             </div>
-            <div id="user-info" style="display:none; text-align: center;">
-                <span style="color: #28a745; font-weight: 600;">✓ Signed in as: </span>
-                <span id="user-email" style="color: #333;"></span>
-                <button onclick="signOut()" style="margin-left: 15px; padding: 5px 15px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">Sign Out</button>
+            <div id="user-info" style="display:none; text-align: center; background: #d4edda; padding: 15px; border-radius: 5px; border: 2px solid #28a745;">
+                <span style="color: #155724; font-weight: 600; font-size: 16px;">✓ SYNCING TO CLOUD - </span>
+                <span id="user-email" style="color: #155724; font-weight: 600;"></span>
+                <button onclick="signOut()" style="margin-left: 15px; padding: 8px 15px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Sign Out</button>
+                <div id="sync-status" style="margin-top: 10px; color: #155724; font-size: 12px; font-style: italic;"></div>
             </div>
         </div>
 
@@ -1766,6 +1768,17 @@
             // Save to localStorage as backup
             localStorage.setItem('assignmentCompletion', JSON.stringify(state));
 
+            // Check if signed in
+            const syncStatusEl = document.getElementById('sync-status');
+            if (!gapi.client.getToken()) {
+                // Not signed in - only local save
+                if (syncStatusEl) syncStatusEl.textContent = '';
+                return;
+            }
+
+            // Show syncing indicator
+            if (syncStatusEl) syncStatusEl.textContent = '⏳ Syncing...';
+
             try {
                 // Convert state object to rows
                 const rows = [['Assignment_ID', 'Completed']];
@@ -1785,8 +1798,15 @@
                     valueInputOption: 'RAW',
                     resource: { values: rows }
                 });
+
+                // Show success
+                if (syncStatusEl) {
+                    const now = new Date().toLocaleTimeString();
+                    syncStatusEl.textContent = `✓ Last synced: ${now}`;
+                }
             } catch (error) {
                 console.error('Error saving to Sheets:', error);
+                if (syncStatusEl) syncStatusEl.textContent = '❌ Sync failed - saved locally only';
             }
         }
 
@@ -1820,8 +1840,8 @@
 
         function maybeEnableButtons() {
             if (gapiInited && gisInited) {
-                document.getElementById('signin-button').innerHTML =
-                    '<button onclick="handleAuthClick()" style="padding: 10px 20px; background: #4285f4; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;">Sign In with Google</button>';
+                document.getElementById('signin-button').innerHTML +=
+                    '<button onclick="handleAuthClick()" style="padding: 15px 30px; background: #4285f4; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: background 0.3s;" onmouseover="this.style.background=\'#357ae8\'" onmouseout="this.style.background=\'#4285f4\'">🔒 Sign In with Google to Enable Cloud Sync</button>';
             }
         }
 
@@ -1846,10 +1866,25 @@
                     console.error('Error getting user info:', error);
                 }
 
-                // Load data from Sheets
-                completionState = await loadCompletionState();
+                // Merge local and cloud data (keep all checked items from both)
+                const localState = {...completionState}; // Save current local state
+                const cloudState = await loadCompletionState(); // Load from Sheets
+
+                // Merge: keep anything checked in EITHER local OR cloud
+                completionState = {...cloudState};
+                Object.keys(localState).forEach(id => {
+                    if (localState[id]) {
+                        completionState[id] = true;
+                    }
+                });
+
+                // Save merged state back to cloud
+                await saveCompletionState(completionState);
+
                 renderAssignments();
                 updateStats();
+
+                document.getElementById('sync-status').textContent = '✓ All changes synced successfully';
             };
 
             if (gapi.client.getToken() === null) {
