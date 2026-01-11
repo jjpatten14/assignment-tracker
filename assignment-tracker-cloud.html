@@ -168,6 +168,7 @@
 
         th.course-col { width: 100px; }
         th.wait-col { width: 50px; text-align: center; }
+        th.ready-col { width: 50px; text-align: center; }
         th.week-col { width: 70px; }
         th.date-col { width: 110px; }
 
@@ -190,7 +191,12 @@
             background: #fff3cd !important;
         }
 
-        tbody tr.completed.waiting {
+        tbody tr.ready {
+            background: #e2d5f1 !important;
+        }
+
+        tbody tr.completed.waiting,
+        tbody tr.completed.ready {
             background: #d4edda !important;
         }
 
@@ -317,6 +323,7 @@
                     <option value="pending">Pending Only</option>
                     <option value="completed">Completed Only</option>
                     <option value="waiting">Waiting Only</option>
+                    <option value="ready">Ready to Submit</option>
                 </select>
             </div>
 
@@ -337,6 +344,7 @@
                     <th class="checkbox-col">✓ Done</th>
                     <th class="course-col sortable" onclick="sortBy('course')">Course</th>
                     <th class="wait-col">⏳</th>
+                    <th class="ready-col">📝</th>
                     <th class="week-col sortable" onclick="sortBy('week')">Week</th>
                     <th class="date-col sortable" onclick="sortBy('date')">Due Date</th>
                     <th class="sortable" onclick="sortBy('name')">Assignment</th>
@@ -1762,41 +1770,46 @@
   }
 ];
 
-        // Load completion and waiting state from Google Sheets
+        // Load completion, waiting, and ready state from Google Sheets
         async function loadCompletionState() {
             try {
                 const response = await gapi.client.sheets.spreadsheets.values.get({
                     spreadsheetId: CONFIG.SPREADSHEET_ID,
-                    range: `${CONFIG.SHEET_NAME}!A2:C`,
+                    range: `${CONFIG.SHEET_NAME}!A2:D`,
                 });
 
                 const rows = response.result.values || [];
                 const completion = {};
                 const waiting = {};
+                const ready = {};
                 rows.forEach(row => {
                     if (row[0]) {
                         completion[row[0]] = row[1] === 'TRUE';
                         waiting[row[0]] = row[2] === 'TRUE';
+                        ready[row[0]] = row[3] === 'TRUE';
                     }
                 });
-                return { completion, waiting };
+                return { completion, waiting, ready };
             } catch (error) {
                 console.error('Error loading from Sheets:', error);
                 // Fallback to localStorage
                 const savedCompletion = localStorage.getItem('assignmentCompletion');
                 const savedWaiting = localStorage.getItem('assignmentWaiting');
+                const savedReady = localStorage.getItem('assignmentReady');
                 return {
                     completion: savedCompletion ? JSON.parse(savedCompletion) : {},
-                    waiting: savedWaiting ? JSON.parse(savedWaiting) : {}
+                    waiting: savedWaiting ? JSON.parse(savedWaiting) : {},
+                    ready: savedReady ? JSON.parse(savedReady) : {}
                 };
             }
         }
 
-        // Save completion and waiting state to Google Sheets
-        async function saveCompletionState(completionState, waitingState) {
+        // Save completion, waiting, and ready state to Google Sheets
+        async function saveCompletionState(completionState, waitingState, readyState) {
             // Save to localStorage as backup
             localStorage.setItem('assignmentCompletion', JSON.stringify(completionState));
             localStorage.setItem('assignmentWaiting', JSON.stringify(waitingState));
+            localStorage.setItem('assignmentReady', JSON.stringify(readyState));
 
             // Check if signed in
             const syncStatusEl = document.getElementById('sync-status');
@@ -1810,19 +1823,19 @@
             if (syncStatusEl) syncStatusEl.textContent = '⏳ Syncing...';
 
             try {
-                // Convert state objects to rows - include all assignments that have either state
-                const allIds = new Set([...Object.keys(completionState), ...Object.keys(waitingState)]);
-                const rows = [['Assignment_ID', 'Completed', 'Waiting']];
+                // Convert state objects to rows - include all assignments that have any state
+                const allIds = new Set([...Object.keys(completionState), ...Object.keys(waitingState), ...Object.keys(readyState)]);
+                const rows = [['Assignment_ID', 'Completed', 'Waiting', 'Ready']];
                 allIds.forEach(id => {
-                    if (completionState[id] || waitingState[id]) {
-                        rows.push([id, completionState[id] ? 'TRUE' : 'FALSE', waitingState[id] ? 'TRUE' : 'FALSE']);
+                    if (completionState[id] || waitingState[id] || readyState[id]) {
+                        rows.push([id, completionState[id] ? 'TRUE' : 'FALSE', waitingState[id] ? 'TRUE' : 'FALSE', readyState[id] ? 'TRUE' : 'FALSE']);
                     }
                 });
 
                 // Clear sheet and write new data
                 await gapi.client.sheets.spreadsheets.values.clear({
                     spreadsheetId: CONFIG.SPREADSHEET_ID,
-                    range: `${CONFIG.SHEET_NAME}!A:C`,
+                    range: `${CONFIG.SHEET_NAME}!A:D`,
                 });
 
                 await gapi.client.sheets.spreadsheets.values.update({
@@ -1903,11 +1916,13 @@
                 // Merge local and cloud data (keep all checked items from both)
                 const localCompletionState = {...completionState}; // Save current local state
                 const localWaitingState = {...waitingState};
+                const localReadyState = {...readyState};
                 const cloudData = await loadCompletionState(); // Load from Sheets
 
                 // Merge: keep anything checked in EITHER local OR cloud
                 completionState = {...cloudData.completion};
                 waitingState = {...cloudData.waiting};
+                readyState = {...cloudData.ready};
                 Object.keys(localCompletionState).forEach(id => {
                     if (localCompletionState[id]) {
                         completionState[id] = true;
@@ -1918,9 +1933,14 @@
                         waitingState[id] = true;
                     }
                 });
+                Object.keys(localReadyState).forEach(id => {
+                    if (localReadyState[id]) {
+                        readyState[id] = true;
+                    }
+                });
 
                 // Save merged state back to cloud
-                await saveCompletionState(completionState, waitingState);
+                await saveCompletionState(completionState, waitingState, readyState);
 
                 renderAssignments();
                 updateStats();
@@ -1948,12 +1968,13 @@
 
         let completionState = {};
         let waitingState = {};
+        let readyState = {};
         let sortState = { column: 'date', direction: 'asc' };
 
         // Toggle assignment completion
         async function toggleAssignment(id) {
             completionState[id] = !completionState[id];
-            await saveCompletionState(completionState, waitingState);
+            await saveCompletionState(completionState, waitingState, readyState);
             renderAssignments();
             updateStats();
         }
@@ -1961,7 +1982,14 @@
         // Toggle waiting on classmates
         async function toggleWaiting(id) {
             waitingState[id] = !waitingState[id];
-            await saveCompletionState(completionState, waitingState);
+            await saveCompletionState(completionState, waitingState, readyState);
+            renderAssignments();
+        }
+
+        // Toggle ready to submit (done but not turned in)
+        async function toggleReady(id) {
+            readyState[id] = !readyState[id];
+            await saveCompletionState(completionState, waitingState, readyState);
             renderAssignments();
         }
 
@@ -1992,7 +2020,8 @@
             if (confirm('Are you sure you want to uncheck all completed assignments?')) {
                 completionState = {};
                 waitingState = {};
-                saveCompletionState(completionState, waitingState);
+                readyState = {};
+                saveCompletionState(completionState, waitingState, readyState);
                 renderAssignments();
                 updateStats();
             }
@@ -2045,6 +2074,7 @@
                 if (statusFilter === 'completed' && !completionState[a.id]) return false;
                 if (statusFilter === 'pending' && completionState[a.id]) return false;
                 if (statusFilter === 'waiting' && !waitingState[a.id]) return false;
+                if (statusFilter === 'ready' && !readyState[a.id]) return false;
                 if (searchFilter && !a.name.toLowerCase().includes(searchFilter)) return false;
                 return true;
             });
@@ -2086,7 +2116,7 @@
 
             if (filtered.length === 0) {
                 document.getElementById('assignmentTable').innerHTML = `
-                    <tr><td colspan="7" class="no-results">No assignments match your filters</td></tr>
+                    <tr><td colspan="8" class="no-results">No assignments match your filters</td></tr>
                 `;
                 return;
             }
@@ -2094,11 +2124,14 @@
             const html = filtered.map(a => {
                 const isCompleted = completionState[a.id];
                 const isWaiting = waitingState[a.id];
+                const isReady = readyState[a.id];
                 let rowClass = '';
                 if (isCompleted) rowClass += 'completed ';
                 if (isWaiting) rowClass += 'waiting ';
+                if (isReady) rowClass += 'ready ';
                 const checked = isCompleted ? 'checked' : '';
                 const waitingChecked = isWaiting ? 'checked' : '';
+                const readyChecked = isReady ? 'checked' : '';
 
                 return `
                     <tr class="${rowClass.trim()}">
@@ -2114,6 +2147,13 @@
                                    ${waitingChecked}
                                    onchange="toggleWaiting(${a.id})"
                                    title="Waiting on classmates"
+                                   style="width: 16px; height: 16px;">
+                        </td>
+                        <td class="checkbox-col">
+                            <input type="checkbox"
+                                   ${readyChecked}
+                                   onchange="toggleReady(${a.id})"
+                                   title="Done but not submitted"
                                    style="width: 16px; height: 16px;">
                         </td>
                         <td>${a.week}</td>
@@ -2158,11 +2198,15 @@
             // Try loading from localStorage as fallback before sign-in
             const savedCompletion = localStorage.getItem('assignmentCompletion');
             const savedWaiting = localStorage.getItem('assignmentWaiting');
+            const savedReady = localStorage.getItem('assignmentReady');
             if (savedCompletion) {
                 completionState = JSON.parse(savedCompletion);
             }
             if (savedWaiting) {
                 waitingState = JSON.parse(savedWaiting);
+            }
+            if (savedReady) {
+                readyState = JSON.parse(savedReady);
             }
 
             initWeekFilter();
