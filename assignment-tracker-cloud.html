@@ -1971,7 +1971,7 @@
         let readyState = {};
         let sortState = { column: 'date', direction: 'asc' };
 
-        // Toggle assignment completion
+        // Toggle done (submitted)
         async function toggleAssignment(id) {
             completionState[id] = !completionState[id];
             await saveCompletionState(completionState, waitingState, readyState);
@@ -1986,7 +1986,7 @@
             renderAssignments();
         }
 
-        // Toggle ready to submit (done but not turned in)
+        // Toggle work done not turned in
         async function toggleReady(id) {
             readyState[id] = !readyState[id];
             await saveCompletionState(completionState, waitingState, readyState);
