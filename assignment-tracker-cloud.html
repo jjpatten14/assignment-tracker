@@ -1,0 +1,2169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assignment Tracker - Spring 2026 (Cloud Sync)</title>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            transition: background-color 0.3s;
+        }
+
+        body.not-syncing {
+            background: #ffcccc;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #1f4e78;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+            text-transform: uppercase;
+        }
+
+        select, input[type="text"] {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #1f4e78;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .stat-card h3 {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .number {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .law { background: #1f4e78; }
+        .man { background: #2f5233; }
+        .sos { background: #c65911; }
+        .mkt { background: #5f3f5f; }
+        .gog { background: #1f7878; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        thead {
+            background: #1f4e78;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        th:hover {
+            background: #16395f;
+        }
+
+        th.sortable::after {
+            content: ' ↕';
+            opacity: 0.5;
+            font-size: 11px;
+        }
+
+        th.sort-asc::after {
+            content: ' ↑';
+            opacity: 1;
+        }
+
+        th.sort-desc::after {
+            content: ' ↓';
+            opacity: 1;
+        }
+
+        th.checkbox-col {
+            width: 60px;
+            text-align: center;
+            cursor: default;
+        }
+
+        th.checkbox-col:hover {
+            background: #1f4e78;
+        }
+
+        th.course-col { width: 100px; }
+        th.wait-col { width: 50px; text-align: center; }
+        th.week-col { width: 70px; }
+        th.date-col { width: 110px; }
+
+        tbody tr {
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s;
+        }
+
+        tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        tbody tr.completed {
+            background: #d4edda !important;
+            text-decoration: line-through;
+            color: #666;
+        }
+
+        tbody tr.waiting {
+            background: #fff3cd !important;
+        }
+
+        tbody tr.completed.waiting {
+            background: #d4edda !important;
+        }
+
+        td {
+            padding: 12px;
+            font-size: 14px;
+        }
+
+        td.checkbox-col {
+            text-align: center;
+        }
+
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .course-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .course-badge.LAW-2010 { background: #1f4e78; }
+        .course-badge.MAN-210 { background: #2f5233; }
+        .course-badge.SOS-1100 { background: #c65911; }
+        .course-badge.MKT-2010 { background: #5f3f5f; }
+        .course-badge.GOG-2300 { background: #1f7878; }
+
+        .type-badge {
+            display: inline-block;
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 16px;
+        }
+
+        .clear-completed {
+            padding: 10px 20px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .clear-completed:hover {
+            background: #c82333;
+        }
+
+        @media (max-width: 768px) {
+            .filters {
+                flex-direction: column;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📋 Assignment Tracker - Spring 2026</h1>
+        <p class="subtitle">Week 1 starts Monday, January 5, 2026 | 140 total assignments</p>
+
+        <div id="auth-status" style="margin-bottom: 20px; padding: 20px; border-radius: 8px; border: 3px solid #ffc107; background: #fff3cd;">
+            <div id="signin-button" style="text-align: center;">
+                <p style="margin: 0 0 15px 0; color: #856404; font-size: 18px; font-weight: bold;">⚠️ NOT SYNCING - Changes only saved locally!</p>
+                <p style="margin-bottom: 15px; color: #856404; font-size: 14px;">Sign in with Google to sync across devices and prevent data loss</p>
+            </div>
+            <div id="user-info" style="display:none; text-align: center; background: #d4edda; padding: 15px; border-radius: 5px; border: 2px solid #28a745;">
+                <span style="color: #155724; font-weight: 600; font-size: 16px;">✓ SYNCING TO CLOUD - </span>
+                <span id="user-email" style="color: #155724; font-weight: 600;"></span>
+                <button onclick="signOut()" style="margin-left: 15px; padding: 8px 15px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Sign Out</button>
+                <div id="sync-status" style="margin-top: 10px; color: #155724; font-size: 12px; font-style: italic;"></div>
+            </div>
+        </div>
+
+        <div class="stats" id="stats"></div>
+
+        <div class="filters">
+            <div class="filter-group">
+                <label>Course</label>
+                <select id="courseFilter">
+                    <option value="">All Courses</option>
+                    <option value="LAW-2010">LAW-2010 - Business Law</option>
+                    <option value="MAN-210">MAN-210 - Principles of Management</option>
+                    <option value="SOS-1100">SOS-1100 - Capstone</option>
+                    <option value="MKT-2010">MKT-2010 - Introduction to Marketing</option>
+                    <option value="GOG-2300">GOG-2300 - Geography</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Week</label>
+                <select id="weekFilter">
+                    <option value="">All Weeks</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Status</label>
+                <select id="statusFilter">
+                    <option value="">All</option>
+                    <option value="pending">Pending Only</option>
+                    <option value="completed">Completed Only</option>
+                    <option value="waiting">Waiting Only</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label>Search</label>
+                <input type="text" id="searchFilter" placeholder="Search assignments...">
+            </div>
+
+            <div class="filter-group">
+                <label>&nbsp;</label>
+                <button class="clear-completed" onclick="clearCompleted()">Clear All Completed</button>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th class="checkbox-col">✓ Done</th>
+                    <th class="course-col sortable" onclick="sortBy('course')">Course</th>
+                    <th class="wait-col">⏳</th>
+                    <th class="week-col sortable" onclick="sortBy('week')">Week</th>
+                    <th class="date-col sortable" onclick="sortBy('date')">Due Date</th>
+                    <th class="sortable" onclick="sortBy('name')">Assignment</th>
+                    <th class="sortable" onclick="sortBy('type')">Type</th>
+                </tr>
+            </thead>
+            <tbody id="assignmentTable">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Google Sheets Configuration
+        const CONFIG = {
+            CLIENT_ID: '9138327937-mhh1luaahdv423pbqs24rfhebq6g50cn.apps.googleusercontent.com',
+            API_KEY: 'AIzaSyD9Jgnma75-nm2-btCzzPoCmH3iqet1Q_E',
+            SPREADSHEET_ID: '1kBy8GiCGPcq--t0Eh-wpwtKqY0hcZAVEiL0Y3sWm8gw',
+            SHEET_NAME: 'CompletionState',
+            SCOPES: 'https://www.googleapis.com/auth/spreadsheets'
+        };
+
+        // Assignment data embedded
+        const assignments = [
+  {
+    "id": 1,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Introductions Forum",
+    "name": "Introductions Forum - Initial Posting",
+    "week": 1,
+    "dueDate": "2026-01-07",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 2,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Introductions Forum",
+    "name": "Introductions Forum - Comments",
+    "week": 1,
+    "dueDate": "2026-01-09",
+    "dayOfWeek": "Friday"
+  },
+  {
+    "id": 3,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 1 - Initial Posting",
+    "week": 2,
+    "dueDate": "2026-01-13",
+    "dayOfWeek": "Tuesday"
+  },
+  {
+    "id": 4,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 1 - Comments",
+    "week": 2,
+    "dueDate": "2026-01-17",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 5,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 2 - Initial Posting",
+    "week": 3,
+    "dueDate": "2026-01-21",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 6,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 2 - Comments",
+    "week": 4,
+    "dueDate": "2026-01-29",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 7,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Written Assignment",
+    "name": "Written Assignment 1",
+    "week": 4,
+    "dueDate": "2026-02-01",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 8,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 3 - Initial Posting",
+    "week": 5,
+    "dueDate": "2026-02-05",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 9,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 3 - Comments",
+    "week": 6,
+    "dueDate": "2026-02-11",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 10,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Written Assignment",
+    "name": "Written Assignment 2",
+    "week": 6,
+    "dueDate": "2026-02-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 11,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Midterm Exam",
+    "name": "Midterm Exam",
+    "week": 7,
+    "dueDate": "2026-02-21",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 12,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 4 - Initial Posting",
+    "week": 7,
+    "dueDate": "2026-02-19",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 13,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 4 - Comments",
+    "week": 8,
+    "dueDate": "2026-02-25",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 14,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Written Assignment",
+    "name": "Written Assignment 3",
+    "week": 8,
+    "dueDate": "2026-03-01",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 15,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 5 - Initial Posting",
+    "week": 9,
+    "dueDate": "2026-03-06",
+    "dayOfWeek": "Friday"
+  },
+  {
+    "id": 16,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 5 - Comments",
+    "week": 10,
+    "dueDate": "2026-03-11",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 17,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Written Assignment",
+    "name": "Written Assignment 4",
+    "week": 10,
+    "dueDate": "2026-03-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 18,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 6 - Initial Posting",
+    "week": 11,
+    "dueDate": "2026-03-18",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 19,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 6 - Comments",
+    "week": 11,
+    "dueDate": "2026-03-21",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 20,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Written Assignment",
+    "name": "Written Assignment 5",
+    "week": 11,
+    "dueDate": "2026-03-22",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 21,
+    "course": "LAW-2010",
+    "courseName": "Business Law",
+    "type": "Final Paper",
+    "name": "Final Paper",
+    "week": 12,
+    "dueDate": "2026-03-29",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 22,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Introductions Forum",
+    "name": "Introductions Forum - Initial Posting",
+    "week": 1,
+    "dueDate": "2026-01-06",
+    "dayOfWeek": "Tuesday"
+  },
+  {
+    "id": 23,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 1 - Initial Posting",
+    "week": 1,
+    "dueDate": "2026-01-07",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 24,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Introductions Forum",
+    "name": "Introductions Forum - Comments",
+    "week": 1,
+    "dueDate": "2026-01-08",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 25,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 1 - Comments",
+    "week": 1,
+    "dueDate": "2026-01-10",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 26,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Module Quiz",
+    "name": "Module 1 Quiz",
+    "week": 1,
+    "dueDate": "2026-01-11",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 27,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 2 - Initial Posting",
+    "week": 2,
+    "dueDate": "2026-01-14",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 28,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 2 - Comments",
+    "week": 2,
+    "dueDate": "2026-01-17",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 29,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Written Assignment",
+    "name": "Written Assignment 1",
+    "week": 2,
+    "dueDate": "2026-01-18",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 30,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Module Quiz",
+    "name": "Module 2 Quiz",
+    "week": 2,
+    "dueDate": "2026-01-18",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 31,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 3 - Initial Posting",
+    "week": 3,
+    "dueDate": "2026-01-21",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 32,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 3 - Comments",
+    "week": 3,
+    "dueDate": "2026-01-24",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 33,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Module Quiz",
+    "name": "Module 3 Quiz",
+    "week": 3,
+    "dueDate": "2026-01-25",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 34,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Career Development",
+    "name": "Career Development Assignment 1",
+    "week": 4,
+    "dueDate": "2026-02-01",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 35,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 4 - Initial Posting",
+    "week": 5,
+    "dueDate": "2026-02-04",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 36,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 4 - Comments",
+    "week": 5,
+    "dueDate": "2026-02-07",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 37,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Module Quiz",
+    "name": "Module 4 Quiz",
+    "week": 5,
+    "dueDate": "2026-02-08",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 38,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Career Development",
+    "name": "Career Development Assignment 2",
+    "week": 6,
+    "dueDate": "2026-02-14",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 39,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Module Quiz",
+    "name": "Module 5 Quiz",
+    "week": 6,
+    "dueDate": "2026-02-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 40,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 5 - Initial Posting",
+    "week": 7,
+    "dueDate": "2026-02-18",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 41,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 5 - Comments",
+    "week": 7,
+    "dueDate": "2026-02-21",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 42,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Module Quiz",
+    "name": "Module 6 Quiz",
+    "week": 7,
+    "dueDate": "2026-02-22",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 43,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 6 - Initial Posting",
+    "week": 8,
+    "dueDate": "2026-02-25",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 44,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 6 - Comments",
+    "week": 8,
+    "dueDate": "2026-02-28",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 45,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Career Development",
+    "name": "Career Development Assignment 3",
+    "week": 9,
+    "dueDate": "2026-03-08",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 46,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Written Assignment",
+    "name": "Written Assignment 2",
+    "week": 10,
+    "dueDate": "2026-03-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 47,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Module Quiz",
+    "name": "Module 7 Quiz",
+    "week": 10,
+    "dueDate": "2026-03-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 48,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 7 - Initial Posting",
+    "week": 11,
+    "dueDate": "2026-03-18",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 49,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 7 - Comments",
+    "week": 11,
+    "dueDate": "2026-03-21",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 50,
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Module Quiz",
+    "name": "Module 8 Quiz",
+    "week": 11,
+    "dueDate": "2026-03-22",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "MAN-210",
+    "courseName": "Principles of Management",
+    "type": "Final Project",
+    "name": "Final Project",
+    "week": 12,
+    "dueDate": "2026-03-29",
+    "dayOfWeek": "Sunday",
+    "id": 51
+  },
+  {
+    "id": 52,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Introductions Forum",
+    "name": "Introductions Forum - Initial Posting",
+    "week": 1,
+    "dueDate": "2026-01-06",
+    "dayOfWeek": "Tuesday"
+  },
+  {
+    "id": 53,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Introductions Forum",
+    "name": "Introductions Forum - Comments",
+    "week": 1,
+    "dueDate": "2026-01-08",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 54,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 1 - Initial Posting",
+    "week": 1,
+    "dueDate": "2026-01-09",
+    "dayOfWeek": "Friday"
+  },
+  {
+    "id": 55,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 1 - Comments",
+    "week": 1,
+    "dueDate": "2026-01-11",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 56,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Written Assignment",
+    "name": "Written Assignment 1",
+    "week": 2,
+    "dueDate": "2026-01-18",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Module Quiz",
+    "name": "Module 1 Quiz",
+    "week": 2,
+    "dueDate": "2026-01-14",
+    "dayOfWeek": "Wednesday",
+    "id": 57
+  },
+  {
+    "id": 58,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Written Assignment",
+    "name": "Written Assignment 2",
+    "week": 3,
+    "dueDate": "2026-01-25",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Module Quiz",
+    "name": "Module 2 Quiz",
+    "week": 4,
+    "dueDate": "2026-01-28",
+    "dayOfWeek": "Wednesday",
+    "id": 59
+  },
+  {
+    "id": 60,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 2 - Initial Posting",
+    "week": 4,
+    "dueDate": "2026-01-30",
+    "dayOfWeek": "Friday"
+  },
+  {
+    "id": 61,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 2 - Comments",
+    "week": 4,
+    "dueDate": "2026-02-01",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Final Project",
+    "name": "Final Project - Part 1: Topic Selection",
+    "week": 4,
+    "dueDate": "2026-02-01",
+    "dayOfWeek": "Sunday",
+    "id": 62
+  },
+  {
+    "id": 63,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 3 - Initial Posting",
+    "week": 5,
+    "dueDate": "2026-02-06",
+    "dayOfWeek": "Friday"
+  },
+  {
+    "id": 64,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Module Quiz",
+    "name": "Module 3 Quiz",
+    "week": 5,
+    "dueDate": "2026-02-07",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 65,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 3 - Comments",
+    "week": 5,
+    "dueDate": "2026-02-08",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Written Assignment",
+    "name": "Written Assignment 3",
+    "week": 5,
+    "dueDate": "2026-02-08",
+    "dayOfWeek": "Sunday",
+    "id": 66
+  },
+  {
+    "id": 67,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 4 - Initial Posting",
+    "week": 6,
+    "dueDate": "2026-02-13",
+    "dayOfWeek": "Friday"
+  },
+  {
+    "id": 68,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 4 - Comments",
+    "week": 6,
+    "dueDate": "2026-02-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Written Assignment",
+    "name": "Written Assignment 4",
+    "week": 6,
+    "dueDate": "2026-02-15",
+    "dayOfWeek": "Sunday",
+    "id": 69
+  },
+  {
+    "id": 70,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Written Assignment",
+    "name": "Written Assignment 5",
+    "week": 7,
+    "dueDate": "2026-02-21",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Module Quiz",
+    "name": "Module 5 Quiz",
+    "week": 8,
+    "dueDate": "2026-02-25",
+    "dayOfWeek": "Wednesday",
+    "id": 71
+  },
+  {
+    "id": 72,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 5 - Initial Posting",
+    "week": 8,
+    "dueDate": "2026-02-27",
+    "dayOfWeek": "Friday"
+  },
+  {
+    "id": 73,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Final Project",
+    "name": "Final Project - Part 2",
+    "week": 8,
+    "dueDate": "2026-03-01",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 6 - Initial Posting",
+    "week": 9,
+    "dueDate": "2026-03-06",
+    "dayOfWeek": "Friday",
+    "id": 74
+  },
+  {
+    "id": 75,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 6 - Comments",
+    "week": 9,
+    "dueDate": "2026-03-08",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 76,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Module Quiz",
+    "name": "Module 6 Quiz",
+    "week": 10,
+    "dueDate": "2026-03-11",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Written Assignment",
+    "name": "Written Assignment 6",
+    "week": 10,
+    "dueDate": "2026-03-15",
+    "dayOfWeek": "Sunday",
+    "id": 77
+  },
+  {
+    "id": 78,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Final Project",
+    "name": "Final Project - Part 3",
+    "week": 10,
+    "dueDate": "2026-03-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Written Assignment",
+    "name": "Written Assignment 7",
+    "week": 11,
+    "dueDate": "2026-03-22",
+    "dayOfWeek": "Sunday",
+    "id": 79
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Module Quiz",
+    "name": "Module 7 Quiz",
+    "week": 12,
+    "dueDate": "2026-03-25",
+    "dayOfWeek": "Wednesday",
+    "id": 80
+  },
+  {
+    "id": 81,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 7 - Initial Posting",
+    "week": 12,
+    "dueDate": "2026-03-25",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 7 - Comments",
+    "week": 12,
+    "dueDate": "2026-03-27",
+    "dayOfWeek": "Friday",
+    "id": 82
+  },
+  {
+    "id": 83,
+    "course": "SOS-1100",
+    "courseName": "Fact, Fiction, or Fake (Capstone)",
+    "type": "Final Project",
+    "name": "Final Project - Part 4",
+    "week": 12,
+    "dueDate": "2026-03-28",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 84,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Introductions Forum",
+    "name": "Introductions Forum - Initial Posting",
+    "week": 1,
+    "dueDate": "2026-01-06",
+    "dayOfWeek": "Tuesday"
+  },
+  {
+    "id": 85,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 1 - Initial Posting",
+    "week": 1,
+    "dueDate": "2026-01-08",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 86,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Introductions Forum",
+    "name": "Introductions Forum - Comments",
+    "week": 1,
+    "dueDate": "2026-01-09",
+    "dayOfWeek": "Friday"
+  },
+  {
+    "id": 87,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 1 - Comments",
+    "week": 1,
+    "dueDate": "2026-01-11",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 88,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Written Assignment",
+    "name": "Written Assignment 1",
+    "week": 2,
+    "dueDate": "2026-01-18",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 89,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 2 - Initial Posting",
+    "week": 3,
+    "dueDate": "2026-01-22",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 90,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 2 - Comments",
+    "week": 3,
+    "dueDate": "2026-01-25",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Final Project",
+    "name": "Final Project - Step 1",
+    "week": 3,
+    "dueDate": "2026-01-25",
+    "dayOfWeek": "Sunday",
+    "id": 91
+  },
+  {
+    "id": 92,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Written Assignment",
+    "name": "Written Assignment 2",
+    "week": 4,
+    "dueDate": "2026-02-01",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 93,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 3 - Initial Posting",
+    "week": 5,
+    "dueDate": "2026-02-05",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 94,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 3 - Comments",
+    "week": 5,
+    "dueDate": "2026-02-08",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Final Project",
+    "name": "Final Project - Step 2",
+    "week": 5,
+    "dueDate": "2026-02-08",
+    "dayOfWeek": "Sunday",
+    "id": 95
+  },
+  {
+    "id": 96,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Written Assignment",
+    "name": "Written Assignment 3",
+    "week": 6,
+    "dueDate": "2026-02-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 97,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 4 - Initial Posting",
+    "week": 7,
+    "dueDate": "2026-02-17",
+    "dayOfWeek": "Tuesday"
+  },
+  {
+    "id": 98,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 4 - Comments",
+    "week": 7,
+    "dueDate": "2026-02-20",
+    "dayOfWeek": "Friday"
+  },
+  {
+    "id": 99,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Written Assignment",
+    "name": "Written Assignment 4",
+    "week": 7,
+    "dueDate": "2026-02-22",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Midterm Exam",
+    "name": "Midterm Examination",
+    "week": 7,
+    "dueDate": "2026-02-22",
+    "dayOfWeek": "Sunday",
+    "id": 100
+  },
+  {
+    "id": 101,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 5 - Initial Posting",
+    "week": 8,
+    "dueDate": "2026-02-24",
+    "dayOfWeek": "Tuesday"
+  },
+  {
+    "id": 102,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 5 - Comments",
+    "week": 8,
+    "dueDate": "2026-02-27",
+    "dayOfWeek": "Friday"
+  },
+  {
+    "id": 103,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Written Assignment",
+    "name": "Written Assignment 5",
+    "week": 8,
+    "dueDate": "2026-03-01",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Final Project",
+    "name": "Final Project - Step 3",
+    "week": 8,
+    "dueDate": "2026-03-01",
+    "dayOfWeek": "Sunday",
+    "id": 104
+  },
+  {
+    "id": 105,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 6 - Initial Posting",
+    "week": 9,
+    "dueDate": "2026-03-05",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 106,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 6 - Comments",
+    "week": 9,
+    "dueDate": "2026-03-08",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Final Project",
+    "name": "Final Project - Step 4",
+    "week": 9,
+    "dueDate": "2026-03-08",
+    "dayOfWeek": "Sunday",
+    "id": 107
+  },
+  {
+    "id": 108,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Written Assignment",
+    "name": "Written Assignment 6",
+    "week": 10,
+    "dueDate": "2026-03-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Final Project",
+    "name": "Final Project - Step 5",
+    "week": 10,
+    "dueDate": "2026-03-15",
+    "dayOfWeek": "Sunday",
+    "id": 109
+  },
+  {
+    "id": 110,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 7 - Initial Posting",
+    "week": 11,
+    "dueDate": "2026-03-19",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 111,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 7 - Comments",
+    "week": 11,
+    "dueDate": "2026-03-22",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Final Project",
+    "name": "Final Project - Step 6",
+    "week": 11,
+    "dueDate": "2026-03-22",
+    "dayOfWeek": "Sunday",
+    "id": 112
+  },
+  {
+    "id": 113,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Written Assignment",
+    "name": "Written Assignment 7",
+    "week": 12,
+    "dueDate": "2026-03-28",
+    "dayOfWeek": "Saturday"
+  },
+  {
+    "id": 114,
+    "course": "MKT-2010",
+    "courseName": "Introduction to Marketing",
+    "type": "Final Project",
+    "name": "Final Project - Part 7",
+    "week": 12,
+    "dueDate": "2026-03-29",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 115,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Introductions Forum",
+    "name": "Introductions Forum - Initial Posting",
+    "week": 1,
+    "dueDate": "2026-01-06",
+    "dayOfWeek": "Tuesday"
+  },
+  {
+    "id": 116,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Introductions Forum",
+    "name": "Introductions Forum - Comments",
+    "week": 1,
+    "dueDate": "2026-01-08",
+    "dayOfWeek": "Thursday"
+  },
+  {
+    "id": 117,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Written Assignment",
+    "name": "Written Assignment 1",
+    "week": 1,
+    "dueDate": "2026-01-11",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 118,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Module Quiz",
+    "name": "Quiz 1",
+    "week": 1,
+    "dueDate": "2026-01-11",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 119,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 1 - Initial Posting",
+    "week": 2,
+    "dueDate": "2026-01-14",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 120,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 1 - Comments",
+    "week": 2,
+    "dueDate": "2026-01-18",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 121,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Written Assignment",
+    "name": "Written Assignment 2",
+    "week": 3,
+    "dueDate": "2026-01-25",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 122,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Module Quiz",
+    "name": "Quiz 2",
+    "week": 3,
+    "dueDate": "2026-01-25",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 123,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 2 - Initial Posting",
+    "week": 4,
+    "dueDate": "2026-01-28",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 124,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 2 - Comments",
+    "week": 4,
+    "dueDate": "2026-02-01",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 125,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Written Assignment",
+    "name": "Written Assignment 3",
+    "week": 5,
+    "dueDate": "2026-02-08",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 126,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Module Quiz",
+    "name": "Quiz 3",
+    "week": 5,
+    "dueDate": "2026-02-08",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 127,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Written Assignment",
+    "name": "Written Assignment 4",
+    "week": 6,
+    "dueDate": "2026-02-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 128,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Module Quiz",
+    "name": "Quiz 4",
+    "week": 6,
+    "dueDate": "2026-02-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 129,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Final Project",
+    "name": "Final Project - Outline",
+    "week": 6,
+    "dueDate": "2026-02-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 130,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Written Assignment",
+    "name": "Written Assignment 5",
+    "week": 7,
+    "dueDate": "2026-02-22",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 131,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Module Quiz",
+    "name": "Quiz 5",
+    "week": 7,
+    "dueDate": "2026-02-22",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 132,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 3 - Initial Posting",
+    "week": 8,
+    "dueDate": "2026-02-25",
+    "dayOfWeek": "Wednesday"
+  },
+  {
+    "id": 133,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Discussion Forum",
+    "name": "Discussion Forum 3 - Comments",
+    "week": 8,
+    "dueDate": "2026-03-01",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 134,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Written Assignment",
+    "name": "Written Assignment 6",
+    "week": 9,
+    "dueDate": "2026-03-08",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 135,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Module Quiz",
+    "name": "Quiz 6",
+    "week": 9,
+    "dueDate": "2026-03-08",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 136,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Written Assignment",
+    "name": "Written Assignment 7",
+    "week": 10,
+    "dueDate": "2026-03-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 137,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Module Quiz",
+    "name": "Quiz 7",
+    "week": 10,
+    "dueDate": "2026-03-15",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 138,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Written Assignment",
+    "name": "Written Assignment 8",
+    "week": 11,
+    "dueDate": "2026-03-22",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 139,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Module Quiz",
+    "name": "Quiz 8",
+    "week": 11,
+    "dueDate": "2026-03-22",
+    "dayOfWeek": "Sunday"
+  },
+  {
+    "id": 140,
+    "course": "GOG-2300",
+    "courseName": "Geography",
+    "type": "Final Project",
+    "name": "Final Project - Paper",
+    "week": 12,
+    "dueDate": "2026-03-29",
+    "dayOfWeek": "Sunday"
+  }
+];
+
+        // Load completion and waiting state from Google Sheets
+        async function loadCompletionState() {
+            try {
+                const response = await gapi.client.sheets.spreadsheets.values.get({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: `${CONFIG.SHEET_NAME}!A2:C`,
+                });
+
+                const rows = response.result.values || [];
+                const completion = {};
+                const waiting = {};
+                rows.forEach(row => {
+                    if (row[0]) {
+                        completion[row[0]] = row[1] === 'TRUE';
+                        waiting[row[0]] = row[2] === 'TRUE';
+                    }
+                });
+                return { completion, waiting };
+            } catch (error) {
+                console.error('Error loading from Sheets:', error);
+                // Fallback to localStorage
+                const savedCompletion = localStorage.getItem('assignmentCompletion');
+                const savedWaiting = localStorage.getItem('assignmentWaiting');
+                return {
+                    completion: savedCompletion ? JSON.parse(savedCompletion) : {},
+                    waiting: savedWaiting ? JSON.parse(savedWaiting) : {}
+                };
+            }
+        }
+
+        // Save completion and waiting state to Google Sheets
+        async function saveCompletionState(completionState, waitingState) {
+            // Save to localStorage as backup
+            localStorage.setItem('assignmentCompletion', JSON.stringify(completionState));
+            localStorage.setItem('assignmentWaiting', JSON.stringify(waitingState));
+
+            // Check if signed in
+            const syncStatusEl = document.getElementById('sync-status');
+            if (!gapi.client.getToken()) {
+                // Not signed in - only local save
+                if (syncStatusEl) syncStatusEl.textContent = '';
+                return;
+            }
+
+            // Show syncing indicator
+            if (syncStatusEl) syncStatusEl.textContent = '⏳ Syncing...';
+
+            try {
+                // Convert state objects to rows - include all assignments that have either state
+                const allIds = new Set([...Object.keys(completionState), ...Object.keys(waitingState)]);
+                const rows = [['Assignment_ID', 'Completed', 'Waiting']];
+                allIds.forEach(id => {
+                    if (completionState[id] || waitingState[id]) {
+                        rows.push([id, completionState[id] ? 'TRUE' : 'FALSE', waitingState[id] ? 'TRUE' : 'FALSE']);
+                    }
+                });
+
+                // Clear sheet and write new data
+                await gapi.client.sheets.spreadsheets.values.clear({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: `${CONFIG.SHEET_NAME}!A:C`,
+                });
+
+                await gapi.client.sheets.spreadsheets.values.update({
+                    spreadsheetId: CONFIG.SPREADSHEET_ID,
+                    range: `${CONFIG.SHEET_NAME}!A1`,
+                    valueInputOption: 'RAW',
+                    resource: { values: rows }
+                });
+
+                // Show success
+                if (syncStatusEl) {
+                    const now = new Date().toLocaleTimeString();
+                    syncStatusEl.textContent = `✓ Last synced: ${now}`;
+                }
+            } catch (error) {
+                console.error('Error saving to Sheets:', error);
+                if (syncStatusEl) syncStatusEl.textContent = '❌ Sync failed - saved locally only';
+            }
+        }
+
+        // Google Authentication
+        let tokenClient;
+        let gapiInited = false;
+        let gisInited = false;
+
+        // Initialize Google API
+        function gapiLoaded() {
+            gapi.load('client', async () => {
+                await gapi.client.init({
+                    apiKey: CONFIG.API_KEY,
+                    discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
+                });
+                gapiInited = true;
+                maybeEnableButtons();
+            });
+        }
+
+        // Initialize Google Identity Services
+        function gisLoaded() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CONFIG.CLIENT_ID,
+                scope: CONFIG.SCOPES,
+                callback: '', // Will be set in handleAuthClick
+            });
+            gisInited = true;
+            maybeEnableButtons();
+        }
+
+        function maybeEnableButtons() {
+            if (gapiInited && gisInited) {
+                document.getElementById('signin-button').innerHTML +=
+                    '<button onclick="handleAuthClick()" style="padding: 15px 30px; background: #4285f4; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: background 0.3s;" onmouseover="this.style.background=\'#357ae8\'" onmouseout="this.style.background=\'#4285f4\'">🔒 Sign In with Google to Enable Cloud Sync</button>';
+            }
+        }
+
+        async function handleAuthClick() {
+            tokenClient.callback = async (resp) => {
+                if (resp.error !== undefined) {
+                    console.error('Auth error:', resp);
+                    return;
+                }
+
+                // Update UI
+                document.getElementById('signin-button').style.display = 'none';
+                document.getElementById('user-info').style.display = 'block';
+                document.body.classList.remove('not-syncing');
+
+                // Get user email
+                try {
+                    const userInfo = await gapi.client.request({
+                        path: 'https://www.googleapis.com/oauth2/v1/userinfo',
+                    });
+                    document.getElementById('user-email').textContent = userInfo.result.email;
+                } catch (error) {
+                    console.error('Error getting user info:', error);
+                }
+
+                // Merge local and cloud data (keep all checked items from both)
+                const localCompletionState = {...completionState}; // Save current local state
+                const localWaitingState = {...waitingState};
+                const cloudData = await loadCompletionState(); // Load from Sheets
+
+                // Merge: keep anything checked in EITHER local OR cloud
+                completionState = {...cloudData.completion};
+                waitingState = {...cloudData.waiting};
+                Object.keys(localCompletionState).forEach(id => {
+                    if (localCompletionState[id]) {
+                        completionState[id] = true;
+                    }
+                });
+                Object.keys(localWaitingState).forEach(id => {
+                    if (localWaitingState[id]) {
+                        waitingState[id] = true;
+                    }
+                });
+
+                // Save merged state back to cloud
+                await saveCompletionState(completionState, waitingState);
+
+                renderAssignments();
+                updateStats();
+
+                document.getElementById('sync-status').textContent = '✓ All changes synced successfully';
+            };
+
+            if (gapi.client.getToken() === null) {
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } else {
+                tokenClient.requestAccessToken({prompt: ''});
+            }
+        }
+
+        function signOut() {
+            const token = gapi.client.getToken();
+            if (token !== null) {
+                google.accounts.oauth2.revoke(token.access_token);
+                gapi.client.setToken('');
+            }
+            document.getElementById('signin-button').style.display = 'block';
+            document.getElementById('user-info').style.display = 'none';
+            document.body.classList.add('not-syncing');
+        }
+
+        let completionState = {};
+        let waitingState = {};
+        let sortState = { column: 'date', direction: 'asc' };
+
+        // Toggle assignment completion
+        async function toggleAssignment(id) {
+            completionState[id] = !completionState[id];
+            await saveCompletionState(completionState, waitingState);
+            renderAssignments();
+            updateStats();
+        }
+
+        // Toggle waiting on classmates
+        async function toggleWaiting(id) {
+            waitingState[id] = !waitingState[id];
+            await saveCompletionState(completionState, waitingState);
+            renderAssignments();
+        }
+
+        // Sort assignments
+        function sortBy(column) {
+            if (sortState.column === column) {
+                sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortState.column = column;
+                sortState.direction = 'asc';
+            }
+
+            // Update header styles
+            document.querySelectorAll('th.sortable').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+
+            const activeHeader = document.querySelector(`th.sortable[onclick*="${column}"]`);
+            if (activeHeader) {
+                activeHeader.classList.add(sortState.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+            }
+
+            renderAssignments();
+        }
+
+        // Clear all completed assignments
+        function clearCompleted() {
+            if (confirm('Are you sure you want to uncheck all completed assignments?')) {
+                completionState = {};
+                waitingState = {};
+                saveCompletionState(completionState, waitingState);
+                renderAssignments();
+                updateStats();
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            const stats = {
+                'LAW-2010': { total: 0, completed: 0 },
+                'MAN-210': { total: 0, completed: 0 },
+                'SOS-1100': { total: 0, completed: 0 },
+                'MKT-2010': { total: 0, completed: 0 },
+                'GOG-2300': { total: 0, completed: 0 }
+            };
+
+            assignments.forEach(a => {
+                stats[a.course].total++;
+                if (completionState[a.id]) {
+                    stats[a.course].completed++;
+                }
+            });
+
+            const statsHtml = Object.keys(stats).map(course => {
+                const courseClass = course.replace('-', '').toLowerCase().substring(0, 3);
+                const pct = stats[course].total > 0
+                    ? Math.round((stats[course].completed / stats[course].total) * 100)
+                    : 0;
+                return `
+                    <div class="stat-card ${courseClass}">
+                        <h3>${course}</h3>
+                        <div class="number">${stats[course].completed}/${stats[course].total}</div>
+                        <div style="font-size: 14px; opacity: 0.9;">${pct}% complete</div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('stats').innerHTML = statsHtml;
+        }
+
+        // Render assignments table
+        function renderAssignments() {
+            const courseFilter = document.getElementById('courseFilter').value;
+            const weekFilter = document.getElementById('weekFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const searchFilter = document.getElementById('searchFilter').value.toLowerCase();
+
+            let filtered = assignments.filter(a => {
+                if (courseFilter && a.course !== courseFilter) return false;
+                if (weekFilter && a.week != weekFilter) return false;
+                if (statusFilter === 'completed' && !completionState[a.id]) return false;
+                if (statusFilter === 'pending' && completionState[a.id]) return false;
+                if (statusFilter === 'waiting' && !waitingState[a.id]) return false;
+                if (searchFilter && !a.name.toLowerCase().includes(searchFilter)) return false;
+                return true;
+            });
+
+            // Sort filtered assignments
+            filtered.sort((a, b) => {
+                let compareA, compareB;
+
+                switch(sortState.column) {
+                    case 'course':
+                        compareA = a.course;
+                        compareB = b.course;
+                        break;
+                    case 'week':
+                        compareA = a.week;
+                        compareB = b.week;
+                        break;
+                    case 'date':
+                        compareA = a.dueDate;
+                        compareB = b.dueDate;
+                        break;
+                    case 'name':
+                        compareA = a.name.toLowerCase();
+                        compareB = b.name.toLowerCase();
+                        break;
+                    case 'type':
+                        compareA = a.type.toLowerCase();
+                        compareB = b.type.toLowerCase();
+                        break;
+                    default:
+                        compareA = a.dueDate;
+                        compareB = b.dueDate;
+                }
+
+                if (compareA < compareB) return sortState.direction === 'asc' ? -1 : 1;
+                if (compareA > compareB) return sortState.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            if (filtered.length === 0) {
+                document.getElementById('assignmentTable').innerHTML = `
+                    <tr><td colspan="7" class="no-results">No assignments match your filters</td></tr>
+                `;
+                return;
+            }
+
+            const html = filtered.map(a => {
+                const isCompleted = completionState[a.id];
+                const isWaiting = waitingState[a.id];
+                let rowClass = '';
+                if (isCompleted) rowClass += 'completed ';
+                if (isWaiting) rowClass += 'waiting ';
+                const checked = isCompleted ? 'checked' : '';
+                const waitingChecked = isWaiting ? 'checked' : '';
+
+                return `
+                    <tr class="${rowClass.trim()}">
+                        <td class="checkbox-col">
+                            <input type="checkbox"
+                                   ${checked}
+                                   onchange="toggleAssignment(${a.id})"
+                                   title="Click to mark as ${isCompleted ? 'pending' : 'complete'}">
+                        </td>
+                        <td><span class="course-badge ${a.course}">${a.course}</span></td>
+                        <td class="checkbox-col">
+                            <input type="checkbox"
+                                   ${waitingChecked}
+                                   onchange="toggleWaiting(${a.id})"
+                                   title="Waiting on classmates"
+                                   style="width: 16px; height: 16px;">
+                        </td>
+                        <td>${a.week}</td>
+                        <td>${formatDate(a.dueDate)}</td>
+                        <td><strong>${a.name}</strong></td>
+                        <td><span class="type-badge">${a.type}</span></td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('assignmentTable').innerHTML = html;
+        }
+
+        // Format date for display
+        function formatDate(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            const options = { month: 'short', day: 'numeric', weekday: 'short' };
+            return date.toLocaleDateString('en-US', options);
+        }
+
+        // Initialize week filter options
+        function initWeekFilter() {
+            const weeks = [...new Set(assignments.map(a => a.week))].sort((a, b) => a - b);
+            const html = weeks.map(w => `<option value="${w}">Week ${w}</option>`).join('');
+            document.getElementById('weekFilter').innerHTML = '<option value="">All Weeks</option>' + html;
+        }
+
+        // Add filter event listeners
+        document.getElementById('courseFilter').addEventListener('change', renderAssignments);
+        document.getElementById('weekFilter').addEventListener('change', renderAssignments);
+        document.getElementById('statusFilter').addEventListener('change', renderAssignments);
+        document.getElementById('searchFilter').addEventListener('input', renderAssignments);
+
+        // Initialize Google APIs on page load
+        window.addEventListener('load', () => {
+            // Start with not-syncing (red background) until signed in
+            document.body.classList.add('not-syncing');
+
+            gapiLoaded();
+            gisLoaded();
+
+            // Try loading from localStorage as fallback before sign-in
+            const savedCompletion = localStorage.getItem('assignmentCompletion');
+            const savedWaiting = localStorage.getItem('assignmentWaiting');
+            if (savedCompletion) {
+                completionState = JSON.parse(savedCompletion);
+            }
+            if (savedWaiting) {
+                waitingState = JSON.parse(savedWaiting);
+            }
+
+            initWeekFilter();
+            renderAssignments();
+            updateStats();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+================================================================================
+                   ASSIGNMENT TRACKER - WEB VERSION
+================================================================================
+
+FILE: assignment-tracker.html (36KB)
+
+================================================================================
+HOW TO USE
+================================================================================
+
+1. Double-click "assignment-tracker.html" to open it in your web browser
+   (Works in Chrome, Firefox, Safari, Edge - any modern browser)
+
+2. You'll see a table with all 95 assignments
+
+3. CLICK THE CHECKBOX next to any assignment to mark it complete
+   - The row turns GREEN automatically!
+   - Your checkmarks are SAVED in your browser (they'll still be there when you reopen)
+
+4. Use the filters at the top to:
+   - Show only one course
+   - Show only a specific week  
+   - Show only pending or completed assignments
+   - Search for specific assignments
+
+5. The stats at the top show your progress for each course
+
+================================================================================
+FEATURES
+================================================================================
+
+✓ REAL CLICKABLE CHECKBOXES (no dropdown bullshit)
+✓ Automatic green highlighting when you check something off
+✓ Saves your progress automatically (uses browser localStorage)
+✓ Filter by course, week, or completion status
+✓ Search box to find specific assignments
+✓ Progress stats for each course
+✓ Color-coded by course (LAW=Blue, MAN=Green, SOS=Orange, MKT=Purple)
+✓ Works on phone, tablet, or computer
+✓ No Excel required
+✓ No macros, no setup, no bullshit - just works
+
+================================================================================
+ALL YOUR ASSIGNMENTS
+================================================================================
+
+LAW-2010 (Business Law): 21 assignments
+MAN-210 (Principles of Management): 28 assignments
+SOS-1100 (Capstone): 21 assignments
+MKT-2010 (Introduction to Marketing): 25 assignments
+
+Total: 95 assignments
+Week 1 starts: Monday, January 5, 2026
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Q: My checkboxes disappeared!
+A: If you cleared your browser cache/cookies, the checkmarks are gone.
+   They're stored in your browser's localStorage.
+   Bookmark the page and don't clear your browser data.
+
+Q: Can I use this on my phone?
+A: Yes! It's fully responsive and works great on mobile.
+
+Q: Can I share this with classmates?
+A: Yes, just send them the assignment-tracker.html file.
+   Each person's checkmarks are saved separately in their own browser.
+
+================================================================================
